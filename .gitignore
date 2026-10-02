@@ -1,0 +1,6 @@
+rstudio-openbsd.bundle
+*.tgz
+*.tar.gz
+build/
+dist/
+token.txt

@@ -1,0 +1,30 @@
+OpenBSD snapshot/current, amd64
+
+Required / used components:
+- cmake
+- ninja
+- clang / libc++
+- git
+- python3
+- apache-ant
+- jdk-17
+- node
+- npm
+- corepack
+- yarn 1.22
+- boost
+- postgresql / libpq
+- sqlite3
+- libinotify
+- libexecinfo
+- R 4.6.1
+- pandoc
+- MathJax
+- dictionaries
+- SOCI 4.0.3
+- GWT 2.12.2
+- OpenBSD-native esbuild binaries:
+  - 0.15.18
+  - 0.16.17
+  - 0.17.19
+  - 0.25.6
