@@ -8,7 +8,9 @@
 
 set -eu
 
-RSTUDIO_SRC="${RSTUDIO_SRC:-$HOME/temp/rstudio}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+RSTUDIO_SRC="${RSTUDIO_SRC:-$WORKSPACE/rstudio}"
 BUILD_CPP="$RSTUDIO_SRC/build/src/cpp"
 
 RSERVER="$BUILD_CPP/server/rserver"

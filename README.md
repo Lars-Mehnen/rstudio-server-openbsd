@@ -102,25 +102,35 @@ For the temporary non-root test setup, `/var/lib/rstudio-server` was created and
 
 ## Test start
 
-Example test launch:
+The helper scripts assume this workspace layout by default:
 
-```sh
-/home/lars/temp/rstudio/build/src/cpp/server/rserver \
-  --server-daemonize=0 \
-  --server-user=lars \
-  --server-data-dir=/tmp/rstudio-server-test \
-  --server-pid-file=/tmp/rstudio-server-test/rserver.pid \
-  --www-address=127.0.0.1 \
-  --www-port=8787 \
-  --rsession-path=/home/lars/temp/rstudio/build/src/cpp/session/rsession \
-  --rsession-which-r=/usr/local/bin/R \
-  --www-local-path=/home/lars/temp/rstudio/src/gwt/www
+```text
+workspace/
+??? rstudio-server-openbsd/
+??? rstudio/
+??? esbuild-native/
 ```
 
-Open:
+All paths can be overridden with environment variables such as
+`WORKSPACE`, `RSTUDIO_SRC`, and `ESBUILD_NATIVE_DIR`.
+
+After running `setup-runtime.sh`, start the development server with:
+
+```sh
+cd rstudio-server-openbsd
+./start-rstudio.sh
+```
+
+By default the server listens on:
 
 ```text
 http://127.0.0.1:8787
+```
+
+If the RStudio source checkout is elsewhere:
+
+```sh
+RSTUDIO_SRC=/path/to/rstudio ./start-rstudio.sh
 ```
 
 ## Confirmed working R session

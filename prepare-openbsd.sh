@@ -89,7 +89,7 @@ for pkg in $PKGS; do
         echo "already installed"
     else
         echo "installing"
-        if ! doas pkg_add -D snap "$pkg"; then
+        if ! doas pkg_add "$pkg"; then
             warn "Could not install package '$pkg'. Install the matching OpenBSD package manually."
         fi
     fi
@@ -267,7 +267,9 @@ fi
 # RStudio source-tree helper assets
 # ----------------------------------------------------------------------
 
-RSTUDIO_SRC="${RSTUDIO_SRC:-$HOME/temp/rstudio}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+RSTUDIO_SRC="${RSTUDIO_SRC:-$WORKSPACE/rstudio}"
 
 if [ -d "$RSTUDIO_SRC" ]; then
     say "Preparing RStudio helper assets in $RSTUDIO_SRC"

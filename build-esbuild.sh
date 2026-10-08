@@ -22,8 +22,10 @@
 
 set -eu
 
-WORKDIR="${WORKDIR:-$HOME/temp}"
-DEST="${DEST:-$WORKDIR/esbuild-native}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+WORKDIR="${WORKDIR:-$WORKSPACE}"
+DEST="${DEST:-$WORKSPACE/esbuild-native}"
 VERSIONS="${VERSIONS:-0.15.18 0.16.17 0.17.19 0.25.6}"
 
 say() {

@@ -11,12 +11,19 @@
 
 set -eu
 
-RSTUDIO_SRC="${RSTUDIO_SRC:-$HOME/temp/rstudio}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+
+RSTUDIO_SRC="${RSTUDIO_SRC:-$WORKSPACE/rstudio}"
 BUILD_DIR="${BUILD_DIR:-$RSTUDIO_SRC/build}"
+
+OPENBSD_INCLUDE_DIR="${OPENBSD_INCLUDE_DIR:-$BUILD_DIR/openbsd-include}"
+ESBUILD_NATIVE_DIR="${ESBUILD_NATIVE_DIR:-$WORKSPACE/esbuild-native}"
+ESBUILD_BINARY_PATH="${ESBUILD_BINARY_PATH:-$ESBUILD_NATIVE_DIR/esbuild-0.15.18.bin}"
 
 export JAVA_HOME="${JAVA_HOME:-/usr/local/jdk-17}"
 export PATH="$JAVA_HOME/bin:$PATH"
-
+export RSTUDIO_TOOLS_ROOT=/opt/rstudio-tools/amd64
 say() {
     printf '\n==> %s\n' "$*"
 }
@@ -42,22 +49,39 @@ if [ ! -x "$JAVA_HOME/bin/java" ]; then
     exit 1
 fi
 
+mkdir -p "$OPENBSD_INCLUDE_DIR"
+
+ln -sfn /usr/local/include/soci "$OPENBSD_INCLUDE_DIR/soci"
+ln -sfn /usr/local/include/inotify "$OPENBSD_INCLUDE_DIR/inotify"
+ln -sfn /usr/local/include/uuid "$OPENBSD_INCLUDE_DIR/uuid"
+ln -sfn /usr/local/include/security "$OPENBSD_INCLUDE_DIR/security"
+ln -sfn /usr/local/include/sqlite3.h "$OPENBSD_INCLUDE_DIR/sqlite3.h"
+ln -sfn /usr/local/include/sqlite3ext.h "$OPENBSD_INCLUDE_DIR/sqlite3ext.h"
+
+if [ ! -x "$ESBUILD_BINARY_PATH" ]; then
+    echo "Native OpenBSD esbuild binary not found: $ESBUILD_BINARY_PATH" >&2
+    exit 1
+fi
+
+export ESBUILD_BINARY_PATH
+
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 say "Configuring RStudio Server"
-
+export Boost_ROOT=/opt/rstudio-tools/amd64/boost/boost_1_91_0
+export BOOST_ROOT="$Boost_ROOT"
 cmake .. -G Ninja \
   -DRSTUDIO_TARGET=Server \
   -DCMAKE_BUILD_TYPE=Release \
-  -DRSTUDIO_USE_SYSTEM_BOOST=1 \
   -DRSTUDIO_UNIT_TESTS_DISABLED=ON \
   -DQUARTO_ENABLED=FALSE \
   -DRSTUDIO_ENABLE_COPILOT=FALSE \
   -DDL_LIB="" \
   -DDL_LIBRARIES="" \
   -DRT_LIBRARIES="" \
-  -DCMAKE_CXX_FLAGS="-I/usr/local/include/postgresql" \
+  -DCMAKE_CXX_FLAGS="-I$OPENBSD_INCLUDE_DIR -I/usr/local/include/postgresql" \
+  -DPAM_INCLUDE_DIR="$OPENBSD_INCLUDE_DIR" \
   -DSOCI_CORE_LIB=/usr/local/lib/libsoci_core.a \
   -DSOCI_SQLITE_LIB=/usr/local/lib/libsoci_sqlite3.a \
   -DSOCI_POSTGRESQL_LIB=/usr/local/lib/libsoci_postgresql.a

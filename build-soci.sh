@@ -7,7 +7,9 @@
 
 set -eu
 
-WORKDIR="${WORKDIR:-$HOME/temp}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
+WORKDIR="${WORKDIR:-$WORKSPACE}"
 PREFIX="${PREFIX:-/usr/local}"
 SOCI_VERSION="${SOCI_VERSION:-v4.0.3}"
 SRC="$WORKDIR/soci"
