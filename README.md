@@ -186,6 +186,20 @@ doas cap_mkdb /etc/login.conf
 
 Log out and back in before building.
 
+## Upgrading R
+
+After `pkg_add -u R` the versioned `libR.so` ABI number changes and `rsession` must be
+relinked. Clear the CMake cache and rebuild the session target:
+
+```sh
+rm rstudio/build/CMakeCache.txt
+cd rstudio-server-openbsd
+./build-rstudio.sh
+```
+
+The fmt vendored-library fix (`<stdlib.h>` include) is now automated in the cmake build
+and no longer requires manual intervention after a rebuild.
+
 ## Source backup
 
 The working source state was saved as:
