@@ -1,7 +1,7 @@
 From b2d42d02242016e0d270720cf19c384600014506 Mon Sep 17 00:00:00 2001
 From: Kevin Ushey <kevin@posit.co>
 Date: Thu, 1 Oct 2026 13:05:09 -0700
-Subject: [PATCH] add more r diagnostics for common errors (#18974)
+Subject: [PATCH 1/5] add more r diagnostics for common errors (#18974)
 
 * add more r diagnostics: repeated formals, duplicate args, bad assignment targets, bare return, trailing empty args, uninstalled packages
 
@@ -954,6 +954,756 @@ index b7a9687a60..1e88816858 100644
 +   expect_equal(as.integer(closure$is_primitive), 0L)
 +   
 +})
+-- 
+2.55.0
+
+
+From f23dcbe01aa5e41baeb33cb5ee95eedb52e0a09f Mon Sep 17 00:00:00 2001
+From: Lars Mehnen <lars@omg.mehnen.eu>
+Date: Thu, 8 Oct 2026 16:13:44 +0200
+Subject: [PATCH 2/5] Add OpenBSD 7.9 support for RStudio Server
+
+---
+ dependencies/common/install-boost             |   8 +-
+ src/cpp/core/CMakeLists.txt                   |  32 +++++
+ .../core/include/core/r_util/RTokenizer.hpp   |   2 +-
+ src/cpp/core/system/OpenBSDResources.cpp      | 122 ++++++++++++++++++
+ src/cpp/core/system/PosixChildProcess.cpp     |   4 +-
+ src/cpp/core/system/PosixSystem.cpp           |  53 +++++++-
+ src/cpp/core/system/PosixUser.cpp             |   4 +-
+ .../system/file_monitor/LinuxFileMonitor.cpp  |   2 +-
+ src/cpp/session/SessionMain.cpp               |   2 +-
+ src/cpp/session/modules/chat/ChatTypes.cpp    |   9 ++
+ src/cpp/shared_core/json/Json.cpp             |   6 +
+ src/gwt/build.xml                             |  85 +++++++++---
+ 12 files changed, 304 insertions(+), 25 deletions(-)
+ create mode 100644 src/cpp/core/system/OpenBSDResources.cpp
+
+diff --git a/dependencies/common/install-boost b/dependencies/common/install-boost
+index 49be3cdc4c..bfbc7ac689 100755
+--- a/dependencies/common/install-boost
++++ b/dependencies/common/install-boost
+@@ -78,7 +78,13 @@ fi
+ # untar source; removing an existing build directory if one exists
+ subsection "Extracting Boost"
+ rm -rf "${BOOST_FOLDER}"
+-tar --bzip2 -xf "${BOOST_TARBALL}"
++
++if [ "$(uname -s)" = "OpenBSD" ]; then
++   gtar --bzip2 -xf "${BOOST_TARBALL}"
++else
++   tar --bzip2 -xf "${BOOST_TARBALL}"
++fi
++
+ cd "${BOOST_FOLDER}"
+ 
+ # use 'rstudio_boost' namespace instead of 'boost'
+diff --git a/src/cpp/core/CMakeLists.txt b/src/cpp/core/CMakeLists.txt
+index 42cf2851c9..2cb541dd5c 100644
+--- a/src/cpp/core/CMakeLists.txt
++++ b/src/cpp/core/CMakeLists.txt
+@@ -214,6 +214,32 @@ if (UNIX)
+       ${ACL_LIBRARIES}
+       ${ZLIB_LIBRARIES})
+ 
++   if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
++      find_library(PQ_LIBRARIES pq PATHS /usr/local/lib)
++      find_library(EXECINFO_LIBRARIES execinfo PATHS /usr/lib)
++      find_library(INOTIFY_LIBRARIES
++         NAMES inotify libinotify
++         PATHS /usr/local/lib/inotify
++         NO_DEFAULT_PATH)
++
++      if(NOT PQ_LIBRARIES)
++         message(FATAL_ERROR "OpenBSD libpq not found")
++      endif()
++
++      if(NOT EXECINFO_LIBRARIES)
++         message(FATAL_ERROR "OpenBSD libexecinfo not found")
++      endif()
++
++      if(NOT INOTIFY_LIBRARIES)
++         message(FATAL_ERROR "OpenBSD libinotify not found")
++      endif()
++
++      list(APPEND CORE_SYSTEM_LIBRARIES
++         ${PQ_LIBRARIES}
++         ${EXECINFO_LIBRARIES}
++         ${INOTIFY_LIBRARIES})
++   endif()
++
+    # add Apple frameworks we depend on
+    if(APPLE)
+       list(APPEND CORE_SYSTEM_LIBRARIES ${CORE_FOUNDATION_LIBRARY})
+@@ -265,6 +291,12 @@ if (UNIX)
+          system/recycle_bin/MacRecycleBin.cpp
+          system/MacResources.cpp
+       )
++   elseif(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
++      set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
++         system/file_monitor/LinuxFileMonitor.cpp
++         system/recycle_bin/LinuxRecycleBin.cpp
++         system/OpenBSDResources.cpp
++      )
+    else()
+       set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
+          system/file_monitor/LinuxFileMonitor.cpp
+diff --git a/src/cpp/core/include/core/r_util/RTokenizer.hpp b/src/cpp/core/include/core/r_util/RTokenizer.hpp
+index 3505783b75..026aac4277 100644
+--- a/src/cpp/core/include/core/r_util/RTokenizer.hpp
++++ b/src/cpp/core/include/core/r_util/RTokenizer.hpp
+@@ -34,7 +34,7 @@
+ #include <core/Macros.hpp>
+ 
+ // On Linux confirm that wchar_t is Unicode
+-#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__STDC_ISO_10646__)
++#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__STDC_ISO_10646__)
+    #error "wchar_t is not Unicode"
+ #endif
+ 
+diff --git a/src/cpp/core/system/OpenBSDResources.cpp b/src/cpp/core/system/OpenBSDResources.cpp
+new file mode 100644
+index 0000000000..41ca9a1a84
+--- /dev/null
++++ b/src/cpp/core/system/OpenBSDResources.cpp
+@@ -0,0 +1,122 @@
++/*
++ * OpenBSDResources.cpp
++ */
++
++#include <sys/types.h>
++#include <sys/sysctl.h>
++#include <sys/resource.h>
++#include <unistd.h>
++
++#include <shared_core/Error.hpp>
++#include <core/system/Resources.hpp>
++
++namespace rstudio {
++namespace core {
++namespace system {
++
++Error getTotalMemory(long* pTotalKb, MemoryProvider* pProvider)
++{
++   int mib[2] = { CTL_HW, HW_PHYSMEM64 };
++   uint64_t mem = 0;
++   size_t len = sizeof(mem);
++
++   if (::sysctl(mib, 2, &mem, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get total physical memory from sysctl",
++                         ERROR_LOCATION);
++
++   *pTotalKb = static_cast<long>(mem / 1024);
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getTotalMemoryUsed(long* pUsedKb, MemoryProvider* pProvider)
++{
++   int mib[2] = { CTL_VM, VM_UVMEXP };
++   struct uvmexp uvm;
++   size_t len = sizeof(uvm);
++
++   if (::sysctl(mib, 2, &uvm, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get VM statistics from sysctl",
++                         ERROR_LOCATION);
++
++   long usedPages =
++      static_cast<long>(uvm.npages) -
++      static_cast<long>(uvm.free);
++
++   *pUsedKb =
++      usedPages * static_cast<long>(uvm.pagesize) / 1024;
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessMemoryUsed(long* pUsedKb, MemoryProvider* pProvider)
++{
++   struct kinfo_proc info;
++   size_t len = sizeof(info);
++
++   int mib[4] =
++   {
++      CTL_KERN,
++      KERN_PROC,
++      KERN_PROC_PID,
++      static_cast<int>(::getpid())
++   };
++
++   if (::sysctl(mib, 4, &info, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get process memory usage from sysctl",
++                         ERROR_LOCATION);
++
++   *pUsedKb =
++      static_cast<long>(info.p_vm_rssize) *
++      static_cast<long>(::getpagesize()) / 1024;
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessMemoryLimit(long* pLimitKb, MemoryProvider* pProvider)
++{
++   struct rlimit limit;
++
++   if (::getrlimit(RLIMIT_RSS, &limit) == -1)
++      return systemError(errno,
++                         "Failed to get process memory limit",
++                         ERROR_LOCATION);
++
++   if (limit.rlim_cur == RLIM_INFINITY)
++      *pLimitKb = 0;
++   else
++      *pLimitKb = static_cast<long>(limit.rlim_cur / 1024);
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessCpuLimit(double* pNumCpus, MemoryProvider* pProvider)
++{
++   *pNumCpus = 0.0;
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++long getProcessSize()
++{
++   long processMemoryUsedKb = 0;
++   MemoryProvider provider = MemoryProviderUnknown;
++
++   Error error =
++      getProcessMemoryUsed(&processMemoryUsedKb, &provider);
++
++   if (error)
++      return 0;
++
++   return processMemoryUsedKb;
++}
++
++} // namespace system
++} // namespace core
++} // namespace rstudio
+diff --git a/src/cpp/core/system/PosixChildProcess.cpp b/src/cpp/core/system/PosixChildProcess.cpp
+index d6e6926fa1..3ad84b485b 100644
+--- a/src/cpp/core/system/PosixChildProcess.cpp
++++ b/src/cpp/core/system/PosixChildProcess.cpp
+@@ -20,7 +20,7 @@
+ #include <signal.h>
+ #include <unistd.h>
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(__OpenBSD__)
+ #include <util.h>
+ #include <sys/ttycom.h>
+ #include <sys/ioctl.h>
+@@ -828,7 +828,7 @@ Error ChildProcess::run()
+ 
+       if (options_.exitWithParent)
+       {
+-#ifndef __APPLE__
++#if !defined(__APPLE__) && !defined(__OpenBSD__)
+          // set a bit indicating we want to die when our parent dies
+          if (::prctl(PR_SET_PDEATHSIG, SIGTERM) == -1)
+             LOG_ERROR(systemError(errno, ERROR_LOCATION));
+diff --git a/src/cpp/core/system/PosixSystem.cpp b/src/cpp/core/system/PosixSystem.cpp
+index 426cc420ca..45f970fee6 100644
+--- a/src/cpp/core/system/PosixSystem.cpp
++++ b/src/cpp/core/system/PosixSystem.cpp
+@@ -39,6 +39,10 @@
+ #include <shared_core/system/PosixSystem.hpp>
+ #include <shared_core/system/SyslogDestination.hpp>
+ 
++#ifdef __OpenBSD__
++#include <sys/sysctl.h>
++#endif
++
+ #ifdef __APPLE__
+ #include <gsl/gsl-lite.hpp>
+ #include <libproc.h>
+@@ -1218,9 +1222,50 @@ Error executablePath(const char * argv0,
+    // need to also search the PATH for the exe name in argv[0]
+    //
+ 
++#ifdef __OpenBSD__
++   // OpenBSD has no /proc/self/exe. If argv0 wasn't supplied, obtain argv[0]
++   // for the current process via KERN_PROC_ARGS.
++   std::string openBsdArgv0;
++
++   if (argv0 == nullptr || *argv0 == '\0')
++   {
++      int mib[] = { CTL_KERN, KERN_PROC_ARGS, static_cast<int>(::getpid()),
++                    KERN_PROC_ARGV };
++
++      size_t size = 0;
++      if (::sysctl(mib, 4, nullptr, &size, nullptr, 0) == -1)
++         return systemError(errno, ERROR_LOCATION);
++
++      std::vector<char> buffer(size);
++      if (::sysctl(mib, 4, buffer.data(), &size, nullptr, 0) == -1)
++         return systemError(errno, ERROR_LOCATION);
++
++      char** procArgv = reinterpret_cast<char**>(buffer.data());
++      if (procArgv == nullptr || procArgv[0] == nullptr)
++         return systemError(EINVAL, ERROR_LOCATION);
++
++      openBsdArgv0 = procArgv[0];
++      argv0 = openBsdArgv0.c_str();
++   }
++
++   if (argv0[0] == '/')
++   {
++      executablePath = argv0;
++   }
++   else
++   {
++      char cwd[PATH_MAX];
++      if (::getcwd(cwd, sizeof(cwd)) == nullptr)
++         return systemError(errno, ERROR_LOCATION);
++
++      FilePath initialPath(cwd);
++      executablePath = initialPath.completePath(argv0).getAbsolutePath();
++   }
++#else
+    // use argv[0] and initial path
+    FilePath initialPath = FilePath::initialPath();
+    executablePath = initialPath.completePath(argv0).getAbsolutePath();
++#endif
+ 
+ #endif
+ 
+@@ -1849,7 +1894,7 @@ void toPids(const std::vector<std::string>& lines, std::vector<PidType>* pPids)
+ 
+ } // anonymous namespace
+ 
+-#ifndef __APPLE__
++#if !defined(__APPLE__) && !defined(__OpenBSD__)
+ core::Error pidof(const std::string& process, std::vector<PidType>* pPids)
+ {
+    // use pidof to capture pids
+@@ -2209,9 +2254,15 @@ Error ProcessInfo::creationTime(boost::posix_time::ptime* pCreationTime) const
+    if (size == 0)
+       return systemError(ESRCH, ERROR_LOCATION);
+ 
++#ifdef __OpenBSD__
++   double startSecs =
++      static_cast<double>(info.p_ustart_sec) +
++      static_cast<double>(info.p_ustart_usec) / 1000000.0;
++#else
+    const struct timeval& start = info.kp_proc.p_starttime;
+    double startSecs =
+       static_cast<double>(start.tv_sec) + start.tv_usec / 1000000.0;
++#endif
+    *pCreationTime = date_time::timeFromSecondsSinceEpoch(startSecs);
+    return Success();
+ }
+diff --git a/src/cpp/core/system/PosixUser.cpp b/src/cpp/core/system/PosixUser.cpp
+index 7dac89ac2c..15a7f4a391 100644
+--- a/src/cpp/core/system/PosixUser.cpp
++++ b/src/cpp/core/system/PosixUser.cpp
+@@ -51,7 +51,7 @@ UserIdentity currentUserIdentity()
+    return userIdentity;
+ }
+ 
+-#if defined(HAVE_SO_PEERCRED)
++#if defined(HAVE_SO_PEERCRED) && !defined(__OpenBSD__)
+ 
+ namespace {
+ 
+@@ -96,7 +96,7 @@ Error socketPeerIdentity(int socket, UserIdentity* pIdentity)
+    #error "No way to discover socket peer identity found on this platform"
+ #endif
+ 
+-#if defined(HAVE_SO_PEERCRED)
++#if defined(HAVE_SO_PEERCRED) && !defined(__OpenBSD__)
+ 
+ Error socketPeerPid(int socket, pid_t* pPid)
+ {
+diff --git a/src/cpp/core/system/file_monitor/LinuxFileMonitor.cpp b/src/cpp/core/system/file_monitor/LinuxFileMonitor.cpp
+index c3f16e9b77..87345942e3 100644
+--- a/src/cpp/core/system/file_monitor/LinuxFileMonitor.cpp
++++ b/src/cpp/core/system/file_monitor/LinuxFileMonitor.cpp
+@@ -19,7 +19,7 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <sys/types.h>
+-#include <sys/inotify.h>
++#include <inotify/sys/inotify.h>
+ 
+ #include <set>
+ 
+diff --git a/src/cpp/session/SessionMain.cpp b/src/cpp/session/SessionMain.cpp
+index 8cf3cc869c..c51440658b 100644
+--- a/src/cpp/session/SessionMain.cpp
++++ b/src/cpp/session/SessionMain.cpp
+@@ -2576,7 +2576,7 @@ RSESSION_MAIN_API int rsessionMain(int argc, char * const argv[])
+ 
+       // move to own process group
+ #ifndef _WIN32
+-      ::setpgrp();
++      ::setpgid(0, 0);
+ #endif
+ 
+       logStartingEnv();
+diff --git a/src/cpp/session/modules/chat/ChatTypes.cpp b/src/cpp/session/modules/chat/ChatTypes.cpp
+index f10606fcdc..171ac7959e 100644
+--- a/src/cpp/session/modules/chat/ChatTypes.cpp
++++ b/src/cpp/session/modules/chat/ChatTypes.cpp
+@@ -15,6 +15,15 @@
+ 
+ #include "ChatTypes.hpp"
+ 
++#ifdef __OpenBSD__
++#ifdef major
++#undef major
++#endif
++#ifdef minor
++#undef minor
++#endif
++#endif
++
+ #include <algorithm>
+ #include <cctype>
+ #include <vector>
+diff --git a/src/cpp/shared_core/json/Json.cpp b/src/cpp/shared_core/json/Json.cpp
+index 35b3a2c1a1..cfca0bbc2a 100644
+--- a/src/cpp/shared_core/json/Json.cpp
++++ b/src/cpp/shared_core/json/Json.cpp
+@@ -52,6 +52,12 @@ namespace rapidjson {
+ typedef uint64_t SizeType;
+ } // end namespace rapidjson
+ 
++#elif defined(__OpenBSD__)
++
++namespace rapidjson {
++typedef unsigned SizeType;
++} // end namespace rapidjson
++
+ #else
+ 
+ namespace rapidjson {
+diff --git a/src/gwt/build.xml b/src/gwt/build.xml
+index c648bf54e1..6cef68e0c4 100644
+--- a/src/gwt/build.xml
++++ b/src/gwt/build.xml
+@@ -297,12 +297,34 @@
+         default resolve to ./www/js/panmirror, matching prior behavior. -->
+    <property name="panmirror.build.dir" value="${www.dir}/js/panmirror"/>
+ 
+-   <target name="panmirror" description="Compile panmirror library">
++   <!-- Detect OpenBSD for the native esbuild workaround. -->
++   <target name="detect-openbsd">
++      <condition property="is.openbsd">
++         <os name="OpenBSD"/>
++      </condition>
++   </target>
+ 
++   <!-- On other platforms preserve the normal dependency installation. -->
++   <target name="panmirror-install"
++           depends="detect-openbsd"
++           unless="is.openbsd">
++      <retry retrycount="3">
++         <exec executable="${yarn.bin}"
++               dir="${panmirror.dir}"
++               resolveexecutable="true"
++               failonerror="true">
++            <arg value="install"/>
++            <arg value="--network-timeout"/>
++            <arg value="240000"/>
++         </exec>
++      </retry>
++   </target>
++
++   <target name="panmirror-init">
+       <!-- Make sure a default value for panmirror.minify is set -->
+       <condition property="panmirror.minify" value="true">
+          <not>
+-            <isset property="panmirror.minify" />
++            <isset property="panmirror.minify"/>
+          </not>
+       </condition>
+ 
+@@ -311,28 +333,59 @@
+       <echo message="panmirror minify: ${panmirror.minify}"/>
+ 
+       <mkdir dir="${panmirror.build.dir}"/>
+-      <retry retrycount="3">
+-         <exec executable="${yarn.bin}" dir="${panmirror.dir}" resolveexecutable="true" failonerror="true">
+-            <arg value="install"/>
+-            <arg value="--network-timeout"/>
+-            <arg value="240000"/>
+-         </exec>
+-      </retry>
+-      <!-- vite needs more than node's default heap (~2GB on CI runners) to
+-           render the panmirror bundle + sourcemap since pinyin 4.x added
+-           several MB of dictionary data (quarto-dev/quarto#1057). preserve
+-           any caller-provided NODE_OPTIONS; node lets later flags win, so a
+-           caller's own heap setting takes precedence over ours. -->
+       <property name="env.NODE_OPTIONS" value=""/>
+-      <exec executable="${yarn.bin}" dir="${panmirror.dir}" resolveexecutable="true" failonerror="true">
++   </target>
++
++   <!-- Normal panmirror build used on supported non-OpenBSD platforms. -->
++   <target name="panmirror-build-default"
++           depends="detect-openbsd,panmirror-install,panmirror-init"
++           unless="is.openbsd">
++      <exec executable="${yarn.bin}"
++            dir="${panmirror.dir}"
++            resolveexecutable="true"
++            failonerror="true">
++         <arg value="build"/>
++         <arg value="--minify"/>
++         <arg value="${panmirror.minify}"/>
++         <arg value="--sourcemap"/>
++         <arg value="true"/>
++         <env key="PANMIRROR_OUTDIR" value="dist-rstudio"/>
++         <env key="NODE_OPTIONS"
++              value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
++      </exec>
++   </target>
++
++   <!--
++      OpenBSD:
++      node_modules are prepared by the OpenBSD build helper and esbuild
++      must use a native OpenBSD executable supplied through the environment.
++   -->
++   <target name="panmirror-build-openbsd"
++           depends="detect-openbsd,panmirror-init"
++           if="is.openbsd">
++      <fail unless="env.ESBUILD_BINARY_PATH"
++            message="ESBUILD_BINARY_PATH must point to a native OpenBSD esbuild binary"/>
++
++      <exec executable="${yarn.bin}"
++            dir="${panmirror.dir}"
++            resolveexecutable="true"
++            failonerror="true">
+          <arg value="build"/>
+          <arg value="--minify"/>
+          <arg value="${panmirror.minify}"/>
+          <arg value="--sourcemap"/>
+          <arg value="true"/>
+          <env key="PANMIRROR_OUTDIR" value="dist-rstudio"/>
+-         <env key="NODE_OPTIONS" value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
++         <env key="ESBUILD_BINARY_PATH"
++              value="${env.ESBUILD_BINARY_PATH}"/>
++         <env key="NODE_OPTIONS"
++              value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
+       </exec>
++   </target>
++
++   <target name="panmirror"
++           depends="panmirror-build-default,panmirror-build-openbsd"
++           description="Compile panmirror library">
+       <copy todir="${panmirror.build.dir}">
+          <fileset dir="${panmirror.dir}/dist-rstudio"/>
+       </copy>
+-- 
+2.55.0
+
+
+From 65913450c857a46bfbc7b6ef2e9926a191c041ab Mon Sep 17 00:00:00 2001
+From: Lars Mehnen <lars@omg.mehnen.eu>
+Date: Thu, 8 Oct 2026 16:37:00 +0200
+Subject: [PATCH 3/5] Document OpenBSD 7.9 support
+
+---
+ OPENBSD.md | 53 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.md  | 10 ++++++++++
+ 2 files changed, 63 insertions(+)
+ create mode 100644 OPENBSD.md
+
+diff --git a/OPENBSD.md b/OPENBSD.md
+new file mode 100644
+index 0000000000..72ef16c3f9
+--- /dev/null
++++ b/OPENBSD.md
+@@ -0,0 +1,53 @@
++# RStudio Server on OpenBSD
++
++This branch adds experimental support for building and running RStudio Server on OpenBSD.
++
++## Tested configuration
++
++The port has been tested successfully with:
++
++- OpenBSD 7.9 amd64
++- RStudio 2026.10.999-dev+999 "Blue Mistflower"
++- R 4.5.2
++- LLVM/Clang from the OpenBSD base system
++- Node.js 22
++- Go 1.26
++- Java 17
++
++## Status
++
++The following components have been built and tested successfully:
++
++- `rserver`
++- `rsession`
++- `rserver-pam`
++- `rpostback`
++- RStudio Web UI
++- interactive R sessions
++
++## Branch
++
++The tested branch is:
++
++`openbsd-rstudio-2026.10`
++
++## Build helper
++
++The reproducible OpenBSD build and setup scripts are maintained in the companion repository:
++
++https://github.com/Lars-Mehnen/rstudio-server-openbsd
++
++The helper repository contains scripts for:
++
++- preparing OpenBSD dependencies
++- building native OpenBSD `esbuild` binaries
++- building SOCI
++- configuring and building RStudio Server
++- preparing the runtime tree
++- starting a development RStudio Server instance
++
++## Notes
++
++This is an experimental OpenBSD port and is not an officially supported Posit platform.
++
++The current port includes OpenBSD-specific adaptations for process handling, resource detection, file monitoring, PAM include handling, Boost extraction, RapidJSON compatibility, Panmirror/esbuild, and related build-system differences.
+diff --git a/README.md b/README.md
+index 1f666879c5..8331abd5bb 100644
+--- a/README.md
++++ b/README.md
+@@ -51,3 +51,13 @@ Contributing
+ We welcome contributions to RStudio. Please see
+ [CONTRIBUTING.md](CONTRIBUTING.md) for details on filing bugs, requesting
+ enhancements, and submitting code.
++## OpenBSD support
++
++This fork contains an experimentally tested OpenBSD 7.9 amd64 port of RStudio Server 2026.10.
++
++See [OPENBSD.md](OPENBSD.md) for tested versions, current status, and OpenBSD-specific notes. Reproducible build and setup scripts are available in the companion repository:
++
++https://github.com/Lars-Mehnen/rstudio-server-openbsd
++
++This OpenBSD port is experimental and is not an officially supported Posit platform.
++
+-- 
+2.55.0
+
+
+From 11cbb1badcffcfee12c6ea16a13b05b7ab216cd4 Mon Sep 17 00:00:00 2001
+From: Lars Mehnen <8724643+Mehnen@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 16:14:41 +0100
+Subject: [PATCH 4/5] OpenBSD: patch fmt/base.h to include <stdlib.h>
+
+On OpenBSD, Clang raises a hard error for uses of malloc/free without
+a prior declaration. fmt/base.h uses both but only includes <stdio.h>
+and <string.h>, so the vendored {fmt} build fails with
+"use of undeclared identifier 'free'".
+
+Add a post-FetchContent cmake step that injects the missing
+  #include <stdlib.h>
+into the vendored fmt/base.h when building on OpenBSD.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ src/cpp/ext/CMakeLists.txt | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/cpp/ext/CMakeLists.txt b/src/cpp/ext/CMakeLists.txt
+index 75b7dd6f8b..5f7ddd48cf 100644
+--- a/src/cpp/ext/CMakeLists.txt
++++ b/src/cpp/ext/CMakeLists.txt
+@@ -497,6 +497,25 @@ if(EXISTS "${_LIBGIT2_GIT2_H}.prev")
+    endif()
+ endif()
+ 
++# OpenBSD: fmt/base.h uses malloc/free but omits <stdlib.h>, causing build
++# failures with Clang. Patch the vendored header after FetchContent populates it.
++if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" AND DEFINED FMT_SOURCE_DIR)
++   set(_FMT_BASE_H "${FMT_SOURCE_DIR}/include/fmt/base.h")
++   if(EXISTS "${_FMT_BASE_H}")
++      file(READ "${_FMT_BASE_H}" _FMT_BASE_H_CONTENT)
++      if(NOT _FMT_BASE_H_CONTENT MATCHES "#include <stdlib\\.h>")
++         string(REPLACE
++            "#  include <stdio.h>   // FILE"
++            "#  include <stdio.h>   // FILE\n#  include <stdlib.h>  // malloc, free"
++            _FMT_BASE_H_CONTENT "${_FMT_BASE_H_CONTENT}")
++         file(WRITE "${_FMT_BASE_H}" "${_FMT_BASE_H_CONTENT}")
++         message(STATUS "OpenBSD: patched fmt/base.h to add <stdlib.h>")
++      endif()
++      unset(_FMT_BASE_H_CONTENT)
++   endif()
++   unset(_FMT_BASE_H)
++endif()
++
+ restore_global_settings()
+ 
+ 
+-- 
+2.55.0
+
+
+From 5b53d7a14a9db296aa5156d6a9fafd7b4135b95f Mon Sep 17 00:00:00 2001
+From: Lars Mehnen <8724643+Mehnen@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 16:16:35 +0100
+Subject: [PATCH 5/5] Update OPENBSD.md for OpenBSD 8.0 and R 4.6.1
+
+- Bump tested configuration to OpenBSD 8.0 / R 4.6.1
+- Add note on rebuilding rsession after an R ABI upgrade
+- Document the fmt <stdlib.h> patch added in the previous commit
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+---
+ OPENBSD.md | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/OPENBSD.md b/OPENBSD.md
+index 72ef16c3f9..c3e7247417 100644
+--- a/OPENBSD.md
++++ b/OPENBSD.md
+@@ -6,9 +6,9 @@ This branch adds experimental support for building and running RStudio Server on
+ 
+ The port has been tested successfully with:
+ 
+-- OpenBSD 7.9 amd64
++- OpenBSD 8.0 amd64
+ - RStudio 2026.10.999-dev+999 "Blue Mistflower"
+-- R 4.5.2
++- R 4.6.1
+ - LLVM/Clang from the OpenBSD base system
+ - Node.js 22
+ - Go 1.26
+@@ -46,8 +46,22 @@ The helper repository contains scripts for:
+ - preparing the runtime tree
+ - starting a development RStudio Server instance
+ 
++## Upgrading R
++
++After a system R upgrade (e.g. from 4.5.x to 4.6.x) `rsession` must be relinked because
++the versioned `libR.so` ABI number changes. Clear the CMake cache and rebuild:
++
++```sh
++rm build/CMakeCache.txt
++cmake -B build ...   # your usual configure flags
++cmake --build build --target rsession
++```
++
+ ## Notes
+ 
+ This is an experimental OpenBSD port and is not an officially supported Posit platform.
+ 
+ The current port includes OpenBSD-specific adaptations for process handling, resource detection, file monitoring, PAM include handling, Boost extraction, RapidJSON compatibility, Panmirror/esbuild, and related build-system differences.
++
++The vendored {fmt} library is patched at configure time to add the missing `<stdlib.h>`
++include required by OpenBSD's Clang (see `src/cpp/ext/CMakeLists.txt`).
 -- 
 2.55.0
 

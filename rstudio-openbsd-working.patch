@@ -1,16 +1,133 @@
-diff --git a/dependencies/tools/rstudio-tools.sh b/dependencies/tools/rstudio-tools.sh
-index 8d574708e0..ec3e05fcc1 100755
---- a/dependencies/tools/rstudio-tools.sh
-+++ b/dependencies/tools/rstudio-tools.sh
-@@ -365,7 +365,7 @@ extract () {
- 		;;
+diff --git a/NEWS.md b/NEWS.md
+index 65af7d8820..7889619ae1 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -6,6 +6,15 @@
+ - ([#9755](https://github.com/rstudio/rstudio/issues/9755)): Objects whose names begin with a dot (e.g. `.data` arguments while debugging) can now be shown in the Environment pane with Show Hidden Objects in the pane's List/Grid menu. The menu also offers Show .Last.value, previously only in Global Options, and the pane now refreshes as soon as either setting changes.
+ - ([#18692](https://github.com/rstudio/rstudio/issues/18692)): The active document tab now has a bold label and a blue overline to make it easier to identify. This is enabled by default and can be disabled in Global Options > General > Basic > Other.
+ - ([#14485](https://github.com/rstudio/rstudio/issues/14485)): R diagnostics now warn about characters in code that look like ASCII but are not (e.g. a Cyrillic 'c', typographic quotes, or a no-break space), and about invisible characters such as a zero-width space. This can be disabled in Global Options > Code > Diagnostics.
++- ([#18977](https://github.com/rstudio/rstudio/issues/18977)): R diagnostics now report a repeated formal argument in a function definition (`function(x, x)`).
++- ([#18977](https://github.com/rstudio/rstudio/issues/18977)): R diagnostics now report a named argument that matches the same formal more than once (`rnorm(n = 1, n = 2)`) when argument checking is enabled (Global Options > Code > Diagnostics). Names absorbed by `...`, as in `c(a = 1, a = 2)`, are still allowed.
++- ([#18978](https://github.com/rstudio/rstudio/issues/18978)): R diagnostics now report an assignment to a constant, such as `TRUE <- 1` or `1 <- x`.
++- ([#18979](https://github.com/rstudio/rstudio/issues/18979)): R diagnostics now warn about a bare `return` used without parentheses, which evaluates to the `return` function instead of returning from the enclosing one.
++- ([#18980](https://github.com/rstudio/rstudio/issues/18980)): R diagnostics now warn about `if (x<-1)` and `while (x<-1)`, which assign rather than compare, when `x < -1` was likely intended.
++- ([#9156](https://github.com/rstudio/rstudio/issues/9156)): R diagnostics now report too many arguments in a call to a function that takes none, such as `Sys.time(1)`, when argument checking is enabled.
++- ([#9157](https://github.com/rstudio/rstudio/issues/9157)): R diagnostics now report an empty trailing argument in calls that reject one, such as `c(1, 2, )` or `paste("a", )`, when argument checking is enabled. Functions that accept a trailing empty argument, including `switch()` and tidyverse functions, are not affected.
++- ([#18981](https://github.com/rstudio/rstudio/issues/18981)): R diagnostics now warn about a `library()` or `require()` call for a package that is not installed.
++- ([#18982](https://github.com/rstudio/rstudio/issues/18982)): R diagnostics now give a specific message for invalid characters, such as a pasted smart quote, an unterminated raw string, or a lone `%`, instead of "unexpected token".
+ - ([#16102](https://github.com/rstudio/rstudio/issues/16102)): Added Code > Select Current Statement (Ctrl+Alt+Shift+S), which selects the whole R statement containing the cursor, including statements that span several lines.
+ - ([#12223](https://github.com/rstudio/rstudio/issues/12223)): Added Edit > Change Spelling Language... (also in the Command Palette) to switch the spelling dictionary in one step. Dictionary changes now take effect immediately in open documents, without restarting RStudio.
+ - ([#6781](https://github.com/rstudio/rstudio/issues/6781)): Added Show Document's Directory to the document tab context menu, and Show Current Document's Directory in Files Pane to the Command Palette, to navigate the Files pane to the folder containing a document, including one open in a separate source window. The tab menu's Set Working Directory item now also moves the Files pane when used from a separate source window.
+diff --git a/OPENBSD.md b/OPENBSD.md
+new file mode 100644
+index 0000000000..c3e7247417
+--- /dev/null
++++ b/OPENBSD.md
+@@ -0,0 +1,67 @@
++# RStudio Server on OpenBSD
++
++This branch adds experimental support for building and running RStudio Server on OpenBSD.
++
++## Tested configuration
++
++The port has been tested successfully with:
++
++- OpenBSD 8.0 amd64
++- RStudio 2026.10.999-dev+999 "Blue Mistflower"
++- R 4.6.1
++- LLVM/Clang from the OpenBSD base system
++- Node.js 22
++- Go 1.26
++- Java 17
++
++## Status
++
++The following components have been built and tested successfully:
++
++- `rserver`
++- `rsession`
++- `rserver-pam`
++- `rpostback`
++- RStudio Web UI
++- interactive R sessions
++
++## Branch
++
++The tested branch is:
++
++`openbsd-rstudio-2026.10`
++
++## Build helper
++
++The reproducible OpenBSD build and setup scripts are maintained in the companion repository:
++
++https://github.com/Lars-Mehnen/rstudio-server-openbsd
++
++The helper repository contains scripts for:
++
++- preparing OpenBSD dependencies
++- building native OpenBSD `esbuild` binaries
++- building SOCI
++- configuring and building RStudio Server
++- preparing the runtime tree
++- starting a development RStudio Server instance
++
++## Upgrading R
++
++After a system R upgrade (e.g. from 4.5.x to 4.6.x) `rsession` must be relinked because
++the versioned `libR.so` ABI number changes. Clear the CMake cache and rebuild:
++
++```sh
++rm build/CMakeCache.txt
++cmake -B build ...   # your usual configure flags
++cmake --build build --target rsession
++```
++
++## Notes
++
++This is an experimental OpenBSD port and is not an officially supported Posit platform.
++
++The current port includes OpenBSD-specific adaptations for process handling, resource detection, file monitoring, PAM include handling, Boost extraction, RapidJSON compatibility, Panmirror/esbuild, and related build-system differences.
++
++The vendored {fmt} library is patched at configure time to add the missing `<stdlib.h>`
++include required by OpenBSD's Clang (see `src/cpp/ext/CMakeLists.txt`).
+diff --git a/README.md b/README.md
+index 1f666879c5..8331abd5bb 100644
+--- a/README.md
++++ b/README.md
+@@ -51,3 +51,13 @@ Contributing
+ We welcome contributions to RStudio. Please see
+ [CONTRIBUTING.md](CONTRIBUTING.md) for details on filing bugs, requesting
+ enhancements, and submitting code.
++## OpenBSD support
++
++This fork contains an experimentally tested OpenBSD 7.9 amd64 port of RStudio Server 2026.10.
++
++See [OPENBSD.md](OPENBSD.md) for tested versions, current status, and OpenBSD-specific notes. Reproducible build and setup scripts are available in the companion repository:
++
++https://github.com/Lars-Mehnen/rstudio-server-openbsd
++
++This OpenBSD port is experimental and is not an officially supported Posit platform.
++
+diff --git a/dependencies/common/install-boost b/dependencies/common/install-boost
+index 49be3cdc4c..bfbc7ac689 100755
+--- a/dependencies/common/install-boost
++++ b/dependencies/common/install-boost
+@@ -78,7 +78,13 @@ fi
+ # untar source; removing an existing build directory if one exists
+ subsection "Extracting Boost"
+ rm -rf "${BOOST_FOLDER}"
+-tar --bzip2 -xf "${BOOST_TARBALL}"
++
++if [ "$(uname -s)" = "OpenBSD" ]; then
++   gtar --bzip2 -xf "${BOOST_TARBALL}"
++else
++   tar --bzip2 -xf "${BOOST_TARBALL}"
++fi
++
+ cd "${BOOST_FOLDER}"
  
- 		*.tar.gz)
--			tar -xf "${FILE}"
-+			tar -xzf "${FILE}"
- 		;;
- 
- 		*.tar.xz)
+ # use 'rstudio_boost' namespace instead of 'boost'
 diff --git a/src/cpp/core/CMakeLists.txt b/src/cpp/core/CMakeLists.txt
 index 42cf2851c9..2cb541dd5c 100644
 --- a/src/cpp/core/CMakeLists.txt
@@ -61,6 +178,39 @@ index 42cf2851c9..2cb541dd5c 100644
     else()
        set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
           system/file_monitor/LinuxFileMonitor.cpp
+diff --git a/src/cpp/core/include/core/r_util/RFunctionInformation.hpp b/src/cpp/core/include/core/r_util/RFunctionInformation.hpp
+index ed166c7ab3..d94ed051c2 100644
+--- a/src/cpp/core/include/core/r_util/RFunctionInformation.hpp
++++ b/src/cpp/core/include/core/r_util/RFunctionInformation.hpp
+@@ -137,7 +137,19 @@ public:
+    {
+       isPrimitive_ = isPrimitive;
+    }
+-   
++
++   // Builtins evaluate all of their arguments eagerly, so an empty
++   // argument is always an error; specials (e.g. 'switch') need not.
++   bool isBuiltin()
++   {
++      return bool(isBuiltin_);
++   }
++
++   void setIsBuiltin(bool isBuiltin)
++   {
++      isBuiltin_ = isBuiltin;
++   }
++
+    const std::vector<FormalInformation>& formals() const
+    {
+       return formals_;
+@@ -193,6 +205,7 @@ private:
+    std::vector<FormalInformation> formals_;
+    std::vector<std::string> formalNames_;
+    boost::tribool isPrimitive_;
++   boost::tribool isBuiltin_;
+    boost::tribool performsNse_;
+    
+    // Provided so that 'infoForFormal' can return by reference
 diff --git a/src/cpp/core/include/core/r_util/RTokenizer.hpp b/src/cpp/core/include/core/r_util/RTokenizer.hpp
 index 3505783b75..026aac4277 100644
 --- a/src/cpp/core/include/core/r_util/RTokenizer.hpp
@@ -74,6 +224,134 @@ index 3505783b75..026aac4277 100644
     #error "wchar_t is not Unicode"
  #endif
  
+diff --git a/src/cpp/core/system/OpenBSDResources.cpp b/src/cpp/core/system/OpenBSDResources.cpp
+new file mode 100644
+index 0000000000..41ca9a1a84
+--- /dev/null
++++ b/src/cpp/core/system/OpenBSDResources.cpp
+@@ -0,0 +1,122 @@
++/*
++ * OpenBSDResources.cpp
++ */
++
++#include <sys/types.h>
++#include <sys/sysctl.h>
++#include <sys/resource.h>
++#include <unistd.h>
++
++#include <shared_core/Error.hpp>
++#include <core/system/Resources.hpp>
++
++namespace rstudio {
++namespace core {
++namespace system {
++
++Error getTotalMemory(long* pTotalKb, MemoryProvider* pProvider)
++{
++   int mib[2] = { CTL_HW, HW_PHYSMEM64 };
++   uint64_t mem = 0;
++   size_t len = sizeof(mem);
++
++   if (::sysctl(mib, 2, &mem, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get total physical memory from sysctl",
++                         ERROR_LOCATION);
++
++   *pTotalKb = static_cast<long>(mem / 1024);
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getTotalMemoryUsed(long* pUsedKb, MemoryProvider* pProvider)
++{
++   int mib[2] = { CTL_VM, VM_UVMEXP };
++   struct uvmexp uvm;
++   size_t len = sizeof(uvm);
++
++   if (::sysctl(mib, 2, &uvm, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get VM statistics from sysctl",
++                         ERROR_LOCATION);
++
++   long usedPages =
++      static_cast<long>(uvm.npages) -
++      static_cast<long>(uvm.free);
++
++   *pUsedKb =
++      usedPages * static_cast<long>(uvm.pagesize) / 1024;
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessMemoryUsed(long* pUsedKb, MemoryProvider* pProvider)
++{
++   struct kinfo_proc info;
++   size_t len = sizeof(info);
++
++   int mib[4] =
++   {
++      CTL_KERN,
++      KERN_PROC,
++      KERN_PROC_PID,
++      static_cast<int>(::getpid())
++   };
++
++   if (::sysctl(mib, 4, &info, &len, nullptr, 0) == -1)
++      return systemError(errno,
++                         "Failed to get process memory usage from sysctl",
++                         ERROR_LOCATION);
++
++   *pUsedKb =
++      static_cast<long>(info.p_vm_rssize) *
++      static_cast<long>(::getpagesize()) / 1024;
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessMemoryLimit(long* pLimitKb, MemoryProvider* pProvider)
++{
++   struct rlimit limit;
++
++   if (::getrlimit(RLIMIT_RSS, &limit) == -1)
++      return systemError(errno,
++                         "Failed to get process memory limit",
++                         ERROR_LOCATION);
++
++   if (limit.rlim_cur == RLIM_INFINITY)
++      *pLimitKb = 0;
++   else
++      *pLimitKb = static_cast<long>(limit.rlim_cur / 1024);
++
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++Error getProcessCpuLimit(double* pNumCpus, MemoryProvider* pProvider)
++{
++   *pNumCpus = 0.0;
++   *pProvider = MemoryProviderUnknown;
++   return Success();
++}
++
++long getProcessSize()
++{
++   long processMemoryUsedKb = 0;
++   MemoryProvider provider = MemoryProviderUnknown;
++
++   Error error =
++      getProcessMemoryUsed(&processMemoryUsedKb, &provider);
++
++   if (error)
++      return 0;
++
++   return processMemoryUsedKb;
++}
++
++} // namespace system
++} // namespace core
++} // namespace rstudio
 diff --git a/src/cpp/core/system/PosixChildProcess.cpp b/src/cpp/core/system/PosixChildProcess.cpp
 index d6e6926fa1..3ad84b485b 100644
 --- a/src/cpp/core/system/PosixChildProcess.cpp
@@ -223,17 +501,47 @@ index c3f16e9b77..87345942e3 100644
  #include <set>
  
 diff --git a/src/cpp/ext/CMakeLists.txt b/src/cpp/ext/CMakeLists.txt
-index 75b7dd6f8b..ff856a4f4b 100644
+index 75b7dd6f8b..5f7ddd48cf 100644
 --- a/src/cpp/ext/CMakeLists.txt
 +++ b/src/cpp/ext/CMakeLists.txt
-@@ -540,6 +540,7 @@ endif()
+@@ -497,6 +497,25 @@ if(EXISTS "${_LIBGIT2_GIT2_H}.prev")
+    endif()
+ endif()
  
- # Create rapidjson target.
- add_library(rstudio-rapidjson INTERFACE EXCLUDE_FROM_ALL)
-+# OpenBSD: use RapidJSON default SizeType (unsigned)
- target_compile_definitions(rstudio-rapidjson INTERFACE "-DRAPIDJSON_NO_SIZETYPEDEFINE")
- target_include_directories(rstudio-rapidjson INTERFACE "${RAPIDJSON_SOURCE_DIR}/include")
++# OpenBSD: fmt/base.h uses malloc/free but omits <stdlib.h>, causing build
++# failures with Clang. Patch the vendored header after FetchContent populates it.
++if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" AND DEFINED FMT_SOURCE_DIR)
++   set(_FMT_BASE_H "${FMT_SOURCE_DIR}/include/fmt/base.h")
++   if(EXISTS "${_FMT_BASE_H}")
++      file(READ "${_FMT_BASE_H}" _FMT_BASE_H_CONTENT)
++      if(NOT _FMT_BASE_H_CONTENT MATCHES "#include <stdlib\\.h>")
++         string(REPLACE
++            "#  include <stdio.h>   // FILE"
++            "#  include <stdio.h>   // FILE\n#  include <stdlib.h>  // malloc, free"
++            _FMT_BASE_H_CONTENT "${_FMT_BASE_H_CONTENT}")
++         file(WRITE "${_FMT_BASE_H}" "${_FMT_BASE_H_CONTENT}")
++         message(STATUS "OpenBSD: patched fmt/base.h to add <stdlib.h>")
++      endif()
++      unset(_FMT_BASE_H_CONTENT)
++   endif()
++   unset(_FMT_BASE_H)
++endif()
++
+ restore_global_settings()
  
+ 
+diff --git a/src/cpp/r/RSexp.cpp b/src/cpp/r/RSexp.cpp
+index 6dec5a8792..081249427a 100644
+--- a/src/cpp/r/RSexp.cpp
++++ b/src/cpp/r/RSexp.cpp
+@@ -2168,6 +2168,7 @@ core::Error extractFunctionInfo(
+    // which contain the appropriate formals.
+    bool isPrimitive = Rf_isPrimitive(functionSEXP);
+    pInfo->setIsPrimitive(isPrimitive);
++   pInfo->setIsBuiltin(TYPEOF(functionSEXP) == BUILTINSXP);
+    if (isPrimitive)
+    {
+       functionSEXP = primitiveWrapper(functionSEXP);
 diff --git a/src/cpp/session/SessionMain.cpp b/src/cpp/session/SessionMain.cpp
 index 8cf3cc869c..c51440658b 100644
 --- a/src/cpp/session/SessionMain.cpp
@@ -247,6 +555,840 @@ index 8cf3cc869c..c51440658b 100644
  #endif
  
        logStartingEnv();
+diff --git a/src/cpp/session/modules/SessionAsyncPackageInformation.cpp b/src/cpp/session/modules/SessionAsyncPackageInformation.cpp
+index 213768e725..260fea1b07 100644
+--- a/src/cpp/session/modules/SessionAsyncPackageInformation.cpp
++++ b/src/cpp/session/modules/SessionAsyncPackageInformation.cpp
+@@ -123,16 +123,18 @@ bool fillFunctionInfo(const json::Object& functionObjectJson,
+       json::Array formalNamesJson;
+       json::Array formalInfoJson;
+       int performsNse = 0;
++      int isPrimitive = 0;
+       Error error = json::readObject(valueJson.getObject(),
+                                      "formal_names", formalNamesJson,
+                                      "formal_info",  formalInfoJson,
+-                                     "performs_nse", performsNse);
++                                     "performs_nse", performsNse,
++                                     "is_primitive", isPrimitive);
+       
+       if (error)
+          LOG_ERROR(error);
+       
+       info.setPerformsNse(performsNse);
+-      info.setIsPrimitive(false);
++      info.setIsPrimitive(isPrimitive);
+       
+       fillFormalInfo(formalNamesJson, formalInfoJson, &info);
+       
+diff --git a/src/cpp/session/modules/SessionCodeTools.R b/src/cpp/session/modules/SessionCodeTools.R
+index 8acdfe8afc..62ce3a6899 100644
+--- a/src/cpp/session/modules/SessionCodeTools.R
++++ b/src/cpp/session/modules/SessionCodeTools.R
+@@ -1570,7 +1570,8 @@
+    list(
+       formal_names = character(),
+       formal_info  = list(),
+-      performs_nse = I(0L)
++      performs_nse = I(0L),
++      is_primitive = I(0L)
+    )
+ })
+ 
+@@ -1667,6 +1668,15 @@
+ 
+ .rs.addFunction("generateFunctionInformation", function(func) {
+ 
++  # Primitives have no formals; record them as such so that they
++  # aren't mistaken for closures which accept no arguments.
++  if (is.primitive(func))
++  {
++     info <- .rs.emptyFunctionInfo()
++     info$is_primitive <- I(1L)
++     return(info)
++  }
++
+   formals <- formals(func)
+   if (!length(formals))
+      return(.rs.emptyFunctionInfo())
+@@ -1699,7 +1709,8 @@
+   list(
+      formal_names = formalNames,
+      formal_info  = formalInfo,
+-     performs_nse = I(as.integer(performsNse))
++     performs_nse = I(as.integer(performsNse)),
++     is_primitive = I(0L)
+   )
+  
+ })
+diff --git a/src/cpp/session/modules/SessionDiagnosticsTests.cpp b/src/cpp/session/modules/SessionDiagnosticsTests.cpp
+index 10cd557578..3aafff35ab 100644
+--- a/src/cpp/session/modules/SessionDiagnosticsTests.cpp
++++ b/src/cpp/session/modules/SessionDiagnosticsTests.cpp
+@@ -76,6 +76,32 @@ using namespace core::r_util;
+       EXPECT_TRUE(results.lint().get().empty());                               \
+    } while (0)
+ 
++bool hasLintContaining(const ParseResults& results, const std::string& needle)
++{
++   for (const LintItem& item : results.lint().get())
++      if (item.message.find(needle) != std::string::npos)
++         return true;
++   return false;
++}
++
++#define EXPECT_LINT_MESSAGE(__STRING__, __MESSAGE__)                           \
++   do                                                                          \
++   {                                                                           \
++      ParseResults results = parse(__STRING__, s_parseOptions);                \
++      if (!hasLintContaining(results, __MESSAGE__))                            \
++         results.lint().dump();                                                \
++      EXPECT_TRUE(hasLintContaining(results, __MESSAGE__));                    \
++   } while (0)
++
++#define EXPECT_NO_LINT_MESSAGE(__STRING__, __MESSAGE__)                        \
++   do                                                                          \
++   {                                                                           \
++      ParseResults results = parse(__STRING__, s_parseOptions);                \
++      if (hasLintContaining(results, __MESSAGE__))                             \
++         results.lint().dump();                                                \
++      EXPECT_FALSE(hasLintContaining(results, __MESSAGE__));                   \
++   } while (0)
++
+ bool isRFile(const FileInfo& info)
+ {
+    std::string ext = string_utils::getExtension(info.absolutePath());
+@@ -175,7 +201,8 @@ TEST(DiagnosticsTest, ValidExpressionsGenerateNoLint) {
+    EXPECT_NO_ERRORS("rnorm(`n` = 1)");
+    EXPECT_NO_ERRORS("rnorm('n' = 1)");
+    
+-   EXPECT_NO_ERRORS("c(a=function()a,)");
++   EXPECT_NO_ERRORS("c(a=function()a)");
++   EXPECT_LINT_MESSAGE("c(a=function()a,)", "empty trailing argument in call to 'c'");
+    EXPECT_NO_ERRORS("function(a) a");
+    EXPECT_NO_ERRORS("function(a)\nwhile (1) 1\n");
+    EXPECT_NO_ERRORS("function(a)\nfor (i in 1) 1\n");
+@@ -394,6 +421,184 @@ TEST(DiagnosticsTest, HandleElseTokenDoesNotCorruptState) {
+    EXPECT_ERRORS("{1 else 2}");
+ }
+ 
++TEST(DiagnosticsTest, RepeatedFormalArguments) {
++   EXPECT_LINT_MESSAGE("function(x, x) {}", "repeated formal argument 'x'");
++   EXPECT_LINT_MESSAGE("function(x = 1, y, x) {}", "repeated formal argument 'x'");
++   EXPECT_LINT_MESSAGE("\\(a, b, a) a + b", "repeated formal argument 'a'");
++   EXPECT_NO_LINT_MESSAGE("function(x, y) { x <- 1; y }", "repeated formal");
++   EXPECT_NO_LINT_MESSAGE("function(x, ...) x", "repeated formal");
++
++   // formals of a nested function definition live in their own scope
++   EXPECT_NO_LINT_MESSAGE("function(x) function(x) x", "repeated formal");
++   EXPECT_NO_LINT_MESSAGE("function(x, f = function(x) x) x", "repeated formal");
++}
++
++TEST(DiagnosticsTest, ArgumentsMatchedMultipleTimes) {
++   EXPECT_LINT_MESSAGE("rnorm(n = 1, n = 2)", "formal argument 'n' matched by multiple");
++   EXPECT_LINT_MESSAGE("rnorm(1, mean = 0, mean = 1)", "formal argument 'mean' matched by multiple");
++   EXPECT_LINT_MESSAGE("paste(sep = ',', sep = ' ')", "formal argument 'sep' matched by multiple");
++   EXPECT_LINT_MESSAGE("f <- function(x, y) x; f(x = 1, x = 2)", "formal argument 'x' matched by multiple");
++   EXPECT_NO_LINT_MESSAGE("rnorm(n = 1, mean = 2)", "matched by multiple");
++
++   // names absorbed by '...' may legitimately repeat
++   EXPECT_NO_LINT_MESSAGE("c(a = 1, a = 2)", "matched by multiple");
++   EXPECT_NO_LINT_MESSAGE("list(a = 1, a = 2)", "matched by multiple");
++   EXPECT_NO_LINT_MESSAGE("paste(a = 1, a = 2)", "matched by multiple");
++
++   // nested calls are inspected on their own
++   EXPECT_NO_LINT_MESSAGE("rnorm(n = 1, mean = rnorm(n = 1))", "matched by multiple");
++}
++
++TEST(DiagnosticsTest, InvalidAssignmentTargets) {
++   EXPECT_LINT_MESSAGE("TRUE <- 1", "invalid assignment target 'TRUE'");
++   EXPECT_LINT_MESSAGE("NULL <- 1", "invalid assignment target 'NULL'");
++   EXPECT_LINT_MESSAGE("NA <- 1", "invalid assignment target 'NA'");
++   EXPECT_LINT_MESSAGE("1 <- x", "invalid assignment target '1'");
++   EXPECT_LINT_MESSAGE("2L <<- x", "invalid assignment target '2L'");
++   EXPECT_LINT_MESSAGE("x -> 1", "invalid assignment target '1'");
++   EXPECT_LINT_MESSAGE("x ->> FALSE", "invalid assignment target 'FALSE'");
++   EXPECT_LINT_MESSAGE("f <- function() { Inf = 1 }", "invalid assignment target 'Inf'");
++
++   // strings and symbols are fine, as are constants on the value side
++   EXPECT_NO_LINT_MESSAGE("\"x\" <- 1", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("x <- TRUE", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("NULL -> x", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("T <- 1", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("x[1] <- 2", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("f(x = 1, NA)", "invalid assignment target");
++   EXPECT_NO_LINT_MESSAGE("list(TRUE = 1)", "invalid assignment target");
++}
++
++TEST(DiagnosticsTest, BareReturn) {
++   EXPECT_LINT_MESSAGE("f <- function(x) { if (x) return; 1 }", "'return' used without parentheses");
++   EXPECT_LINT_MESSAGE("f <- function(x) {\n  return\n}", "'return' used without parentheses");
++   EXPECT_NO_LINT_MESSAGE("f <- function(x) { if (x) return() else return(1) }", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("f <- function(x) { return (x) }", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("x$return", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("base::return(1)", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("list(return = 1)", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("'return'", "'return' used without");
++
++   // 'return' can be an ordinary variable (grid has a formal named 'return')
++   EXPECT_NO_LINT_MESSAGE("f <- function(x, return = FALSE) { if (return) x }", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("f <- function(x, return = FALSE) list(return = return)", "'return' used without");
++
++   // references to the function itself are not statements
++   EXPECT_NO_LINT_MESSAGE("identical(e[[1]], quote(return))", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("body(f)[[1]] == quote(return)", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("lapply(x, return)", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("ret <- return", "'return' used without");
++   EXPECT_NO_LINT_MESSAGE("f <- function(x) { identical(x, return) }", "'return' used without");
++
++   // statements within a block passed to a function still are
++   EXPECT_LINT_MESSAGE("local({ if (x) return; 1 })", "'return' used without parentheses");
++   EXPECT_LINT_MESSAGE("f <- function(x) if (x) return else 1", "'return' used without parentheses");
++   EXPECT_LINT_MESSAGE("f <- function(x) {\n  if (x) return\n  -1\n}", "'return' used without parentheses");
++}
++
++TEST(DiagnosticsTest, InvalidCharacters) {
++   EXPECT_LINT_MESSAGE("x <- \xE2\x80\x9C" "hello" "\xE2\x80\x9D", "smart quote");
++   EXPECT_LINT_MESSAGE("x <- \xE2\x80\x98" "hello" "\xE2\x80\x99", "smart quote");
++   EXPECT_ERRORS("x <- \xE2\x80\x9C" "hello" "\xE2\x80\x9D");
++   EXPECT_NO_LINT_MESSAGE("x <- \"hello\"", "smart quote");
++   EXPECT_NO_LINT_MESSAGE("x <- 'hello'", "smart quote");
++   EXPECT_NO_LINT_MESSAGE("x <- \"\xE2\x80\x9C" "quoted" "\xE2\x80\x9D\"", "smart quote");
++   EXPECT_NO_LINT_MESSAGE("# \xE2\x80\x9C" "comment" "\xE2\x80\x9D", "smart quote");
++
++   EXPECT_LINT_MESSAGE("x %in y", "unterminated '%' operator");
++   EXPECT_LINT_MESSAGE("x <- r\"(abc)", "unterminated raw string");
++   EXPECT_LINT_MESSAGE("x <- 1 \xC2\xA7 2", "unexpected character '\xC2\xA7'");
++   EXPECT_NO_LINT_MESSAGE("x %in% y", "unterminated");
++   EXPECT_NO_LINT_MESSAGE("x <- r\"(abc)\"", "unterminated");
++}
++
++TEST(DiagnosticsTest, AssignmentToLiteralInConditional) {
++   EXPECT_LINT_MESSAGE("if (x<-1) 2", "did you mean to use '< -'");
++   EXPECT_LINT_MESSAGE("while (n<-10) n", "did you mean to use '< -'");
++   EXPECT_LINT_MESSAGE("if (x<-1.5) 2", "did you mean to use '< -'");
++   EXPECT_LINT_MESSAGE("if (y && x<-1) 2", "did you mean to use '< -'");
++
++   // spaced out, non-numeric, or outside a condition: legitimate assignments
++   EXPECT_NO_LINT_MESSAGE("if (x <- 1) 2", "did you mean to use '< -'");
++   EXPECT_NO_LINT_MESSAGE("if (x<-foo()) 2", "did you mean to use '< -'");
++   EXPECT_NO_LINT_MESSAGE("if (x < -1) 2", "did you mean to use '< -'");
++   EXPECT_NO_LINT_MESSAGE("x<-1", "did you mean to use '< -'");
++   EXPECT_NO_LINT_MESSAGE("if (any(x<-1)) 2", "did you mean to use '< -'");
++   EXPECT_NO_LINT_MESSAGE("for (i in x<-1) 2", "did you mean to use '< -'");
++}
++
++TEST(DiagnosticsTest, TooManyArgumentsToZeroArgumentFunction) {
++   EXPECT_LINT_MESSAGE("test0 <- function() {}\ntest0(1)", "too many arguments in call to 'test0'");
++   EXPECT_LINT_MESSAGE("test0 <- function() {}\ntest0(1, 2)", "too many arguments in call to 'test0'");
++   EXPECT_LINT_MESSAGE("Sys.time(1)", "too many arguments in call to 'Sys.time'");
++   EXPECT_NO_LINT_MESSAGE("test0 <- function() {}\ntest0()", "too many arguments");
++   EXPECT_NO_LINT_MESSAGE("Sys.time()", "too many arguments");
++
++   // primitives without formals (language constructs) are left alone
++   EXPECT_NO_ERRORS("f <- function(x) { return(x) }");
++   EXPECT_NO_ERRORS("f <- function(x) { on.exit(x) }");
++
++   // '.Internal()' calls target the internal entry point, not the wrapper
++   EXPECT_NO_ERRORS("grepl <- function(pattern, x) .Internal(grepl(pattern, x, FALSE, FALSE))");
++}
++
++TEST(DiagnosticsTest, EmptyTrailingArguments) {
++   EXPECT_LINT_MESSAGE("c(1,)", "empty trailing argument in call to 'c'");
++   EXPECT_LINT_MESSAGE("c(\n  1,\n  2,\n)", "empty trailing argument in call to 'c'");
++   EXPECT_LINT_MESSAGE("list(a = 1, )", "empty trailing argument in call to 'list'");
++   EXPECT_LINT_MESSAGE("sum(1, )", "empty trailing argument in call to 'sum'");
++   EXPECT_LINT_MESSAGE("paste('a', )", "empty trailing argument in call to 'paste'");
++   EXPECT_LINT_MESSAGE("data.frame(a = 1, )", "empty trailing argument in call to 'data.frame'");
++   EXPECT_LINT_MESSAGE("length(x, )", "empty trailing argument in call to 'length'");
++
++   // functions that tolerate a trailing empty argument
++   EXPECT_NO_LINT_MESSAGE("c(1, 2)", "empty trailing argument");
++   EXPECT_NO_LINT_MESSAGE("switch(x, a = 1, )", "empty trailing argument");
++   EXPECT_NO_LINT_MESSAGE("on.exit(NULL, )", "empty trailing argument");
++   EXPECT_NO_LINT_MESSAGE("mean(x, )", "empty trailing argument");
++   EXPECT_NO_LINT_MESSAGE("x[1, ]", "empty trailing argument");
++   EXPECT_NO_LINT_MESSAGE("f <- function(...) list2(...); f(1, )", "empty trailing argument");
++}
++
++TEST(DiagnosticsTest, PackageNotInstalled) {
++   EXPECT_LINT_MESSAGE("library(rstudioNoSuchPackage)", "package 'rstudioNoSuchPackage' is not installed");
++   EXPECT_LINT_MESSAGE("library('rstudioNoSuchPackage')", "package 'rstudioNoSuchPackage' is not installed");
++   EXPECT_LINT_MESSAGE("require(rstudioNoSuchPackage)", "package 'rstudioNoSuchPackage' is not installed");
++   EXPECT_LINT_MESSAGE("suppressPackageStartupMessages(library(rstudioNoSuchPackage))", "is not installed");
++
++   // availability checks and string-taking loaders are left alone
++   EXPECT_NO_LINT_MESSAGE("requireNamespace(\"rstudioNoSuchPackage\", quietly = TRUE)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("loadNamespace(pkg)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("library(stats)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("library(\"utils\")", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("pkg <- 'rstudioNoSuchPackage'; library(pkg, character.only = TRUE)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("library(rstudioNoSuchPackage, character.only = TRUE)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("library()", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("x$library(rstudioNoSuchPackage)", "is not installed");
++
++   // 'require()' is an availability check whenever its result is used
++   EXPECT_NO_LINT_MESSAGE("if (!require(rstudioNoSuchPackage)) install.packages('rstudioNoSuchPackage')", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("if (require(rstudioNoSuchPackage)) 1 else 2", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("ok <- require(rstudioNoSuchPackage)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("require(rstudioNoSuchPackage) || stop('unavailable')", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("stopifnot(require(rstudioNoSuchPackage))", "is not installed");
++   EXPECT_LINT_MESSAGE("f <- function() {\n  require(rstudioNoSuchPackage)\n  1\n}", "is not installed");
++   EXPECT_LINT_MESSAGE("if (x) library(rstudioNoSuchPackage)", "is not installed");
++
++   // ... including as the value of a function, or of an 'else' branch
++   EXPECT_NO_LINT_MESSAGE("has_foo <- function() require(rstudioNoSuchPackage)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("ok <- if (a) TRUE else require(rstudioNoSuchPackage)", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("f <- function() {\n  message('checking')\n  require(rstudioNoSuchPackage)\n}", "is not installed");
++
++   // elsewhere, a statement's value is discarded
++   EXPECT_LINT_MESSAGE("if (x) {\n  require(rstudioNoSuchPackage)\n}", "is not installed");
++   EXPECT_LINT_MESSAGE("f <- function() {\n  if (x) require(rstudioNoSuchPackage)\n  1\n}", "is not installed");
++
++   // the package may live in a library that isn't on the library paths
++   EXPECT_NO_LINT_MESSAGE("library(rstudioNoSuchPackage, lib.loc = '~/mylib')", "is not installed");
++   EXPECT_NO_LINT_MESSAGE("require(rstudioNoSuchPackage, lib.loc = lib)", "is not installed");
++}
++
+ TEST(DiagnosticsTest, RStudioFilesCanBeSuccessfullyLinted) {
+    lintRStudioRFiles();
+ }
+diff --git a/src/cpp/session/modules/SessionRParser.cpp b/src/cpp/session/modules/SessionRParser.cpp
+index 387b81aac9..74f336f19b 100644
+--- a/src/cpp/session/modules/SessionRParser.cpp
++++ b/src/cpp/session/modules/SessionRParser.cpp
+@@ -761,7 +761,7 @@ FunctionInformation getInfoAssociatedWithFunctionAtCursor(
+          if (pNode->getParent())
+             origin = pNode->getParent()->name();
+ 
+-         FunctionInformation info(origin, name);
++         FunctionInformation info(name, origin);
+          RTokenCursor clone = cursor.clone();
+          if (clone.moveToPosition(pNode->position()))
+          {
+@@ -1546,6 +1546,23 @@ void lookAheadAndWarnOnUsagesOfSymbol(const RTokenCursor& startCursor,
+ 
+ 
+ 
++// Check whether the tokens from 'startCursor' to 'endCursor' form a
++// statement of their own, so that the value they produce is discarded,
++// as opposed to an operand, a condition, or an argument to a call.
++bool isStandaloneStatement(const RTokenCursor& startCursor,
++                           const RTokenCursor& endCursor,
++                           const ParseStatus& status)
++{
++   if (status.isInParentheticalScope())
++      return false;
++
++   const RToken& previous = startCursor.previousSignificantToken();
++   if (isBinaryOp(previous) || isValidAsUnaryOperator(previous))
++      return false;
++
++   return endCursor.clone().isAtEndOfStatement(false);
++}
++
+ void handleIdentifier(RTokenCursor& cursor,
+                       ParseStatus& status)
+ {
+@@ -1586,7 +1603,21 @@ void handleIdentifier(RTokenCursor& cursor,
+    // Ignore pipe-bind placeholder.
+    if (cursor.contentEquals(L"_"))
+       return;
+-   
++
++   // A bare 'return' evaluates to the primitive itself rather than
++   // returning from the enclosing function, which is essentially
++   // never what was intended -- unless 'return' is a variable here
++   // (grid, for one, has a formal argument named 'return'). Only
++   // statements are flagged: elsewhere (e.g. 'quote(return)') the
++   // function itself is what's wanted.
++   if (cursor.contentEquals(L"return") &&
++       !cursor.nextSignificantToken().isType(RToken::LPAREN) &&
++       isStandaloneStatement(cursor, cursor, status) &&
++       !status.node()->symbolHasDefinitionInTree("return", cursor.currentPosition()))
++   {
++      status.lint().bareReturn(cursor);
++   }
++
+    if (cursor.isType(RToken::ID) ||
+        cursor.isType(RToken::STRING))
+    {
+@@ -1860,6 +1891,182 @@ void checkUnexpectedEqualsAssignment(RTokenCursor& cursor,
+ 
+    if (cursor.contentEquals(L"="))
+       status.lint().unexpectedAssignmentInConditional(cursor, context);
++
++   // Catch the classic 'if (x<-1)' typo: the author almost certainly
++   // meant 'x < -1', but R parses it as an assignment. We only flag
++   // this when the operator is glued to its operands and the right-hand
++   // side is a numeric literal, since 'if (x <- foo())' is a common and
++   // legitimate idiom.
++   if (cursor.contentEquals(L"<-") &&
++       context != "for" &&
++       !isWhitespace(cursor.previousToken()) &&
++       !isWhitespace(cursor.nextToken()) &&
++       cursor.nextSignificantToken().isType(RToken::NUMBER))
++   {
++      status.lint().unexpectedAssignmentToLiteralInConditional(cursor, context);
++   }
++}
++
++// Detect assignments that can never succeed, e.g.
++//
++//    TRUE <- 1
++//    1 <- x
++//    x -> NULL
++//
++// R rejects these with 'invalid (do_set) left-hand side to assignment'.
++// Note that strings are valid assignment targets ("x" <- 1), so only
++// numbers and reserved constants are flagged.
++bool isInvalidAssignmentTarget(const RToken& token)
++{
++   if (token.isType(RToken::NUMBER))
++      return true;
++
++   if (!token.isType(RToken::ID))
++      return false;
++
++   return token.contentEquals(L"TRUE") ||
++          token.contentEquals(L"FALSE") ||
++          token.contentEquals(L"NULL") ||
++          token.contentEquals(L"Inf") ||
++          token.contentEquals(L"NaN") ||
++          isNaKeyword(token);
++}
++
++void checkInvalidAssignmentTarget(RTokenCursor& cursor,
++                                  ParseStatus& status)
++{
++   // '=' binds a named argument in a call, not an assignment;
++   // the parser doesn't route those here, but be defensive.
++   if (status.isInArgumentList() && cursor.contentEquals(L"="))
++      return;
++
++   if (isLeftAssign(cursor))
++   {
++      const RToken& target = cursor.previousSignificantToken();
++      if (isInvalidAssignmentTarget(target))
++         status.lint().invalidAssignmentTarget(target);
++   }
++   else if (isRightAssign(cursor))
++   {
++      const RToken& target = cursor.nextSignificantToken();
++      if (isInvalidAssignmentTarget(target))
++         status.lint().invalidAssignmentTarget(target);
++   }
++}
++
++// Detect repeated formals in a function definition, e.g.
++//
++//    function(x, x) {}
++//
++// which R rejects at parse time. Formals are recorded as defined
++// symbols on the function's (fresh) parse node as they're seen, so
++// a formal that already exists there is a repeat.
++void checkRepeatedFormalArgument(const RTokenCursor& cursor,
++                                 ParseStatus& status)
++{
++   if (!cursor.isType(RToken::ID))
++      return;
++
++   std::string name = token_utils::getSymbolName(cursor.currentToken());
++   if (status.node()->getDefinedSymbols().count(name))
++      status.lint().repeatedFormalArgument(cursor.currentToken());
++}
++
++// Detect calls of the form 'library(foo)' or 'require(foo)' where
++// 'foo' is not installed. The editor separately offers to install
++// missing packages on save; this provides the inline marker.
++//
++// 'requireNamespace()' and 'loadNamespace()' are deliberately not
++// handled: they take a string (often a variable), and the former is
++// almost always an availability check that expects absence.
++// 'require()' is an availability check too whenever its result is
++// used, as in 'if (!require(foo))', so only statements whose value
++// is discarded are flagged.
++void checkPackageInstalled(const RTokenCursor& cursor,
++                           ParseStatus& status)
++{
++   if (!cursor.isType(RToken::LPAREN))
++      return;
++
++   const RToken& callee = cursor.previousSignificantToken();
++   if (!callee.isType(RToken::ID))
++      return;
++
++   bool isRequire = callee.contentEquals(L"require");
++   if (!isRequire && !callee.contentEquals(L"library"))
++      return;
++
++   // Only handle plain calls; 'x$library(foo)' is something else.
++   if (isExtractionOperator(cursor.previousSignificantToken(2)))
++      return;
++
++   // The package must be a bare symbol or string forming the
++   // whole first argument.
++   const RToken& pkgToken = cursor.nextSignificantToken();
++   if (!pkgToken.isType(RToken::ID) && !pkgToken.isType(RToken::STRING))
++      return;
++
++   const RToken& after = cursor.nextSignificantToken(2);
++   if (!after.isType(RToken::COMMA) && !after.isType(RToken::RPAREN))
++      return;
++
++   RTokenCursor endCursor = cursor.clone();
++   if (!endCursor.fwdToMatchingToken())
++      return;
++
++   if (isRequire)
++   {
++      RTokenCursor calleeCursor = cursor.clone();
++      if (!calleeCursor.moveToPreviousSignificantToken())
++         return;
++
++      if (!isStandaloneStatement(calleeCursor, endCursor, status))
++         return;
++
++      // A statement's value can still be used, when it's the value of
++      // an 'else' branch or of the function enclosing it.
++      if (calleeCursor.previousSignificantToken().contentEquals(L"else"))
++         return;
++
++      ParseStatus::ParseState state = status.currentState();
++      if (state == ParseStatus::ParseStateFunctionStatement)
++         return;
++
++      if (state == ParseStatus::ParseStateFunctionExpression &&
++          endCursor.nextSignificantToken().isType(RToken::RBRACE))
++      {
++         return;
++      }
++   }
++
++   // With 'character.only = TRUE', a symbol refers to a variable
++   // holding the package name, and with 'lib.loc' the package need
++   // not be on the library paths, so there's nothing to check.
++   RTokenCursor argCursor = cursor.clone();
++   while (argCursor.moveToNextSignificantToken() &&
++          argCursor.currentPosition() < endCursor.currentPosition())
++   {
++      if (argCursor.contentEquals(L"character.only") ||
++          argCursor.contentEquals(L"lib.loc"))
++      {
++         return;
++      }
++
++      // Skip nested calls so that their arguments aren't inspected.
++      if (isLeftBracket(argCursor))
++         argCursor.fwdToMatchingToken();
++   }
++
++   std::string packageName = token_utils::getSymbolName(pkgToken);
++   if (packageName.empty())
++      return;
++
++   bool installed = true;
++   Error error = r::exec::RFunction(".rs.isPackageInstalled", packageName).call(&installed);
++   if (error)
++      LOG_ERROR(error);
++   else if (!installed)
++      status.lint().packageNotInstalled(pkgToken, packageName);
+ }
+ 
+ void checkBinaryOperatorWhitespace(RTokenCursor& cursor,
+@@ -2312,9 +2519,94 @@ void validateGlueCall(RTokenCursor cursor,
+       
+    }
+    while (cursor.moveToNextSignificantToken());
+-   
++
+ }
+ 
++// Detect calls with an empty trailing argument, e.g.
++//
++//    c(1, 2, )
++//
++// R rejects these for builtins (every argument is evaluated, and an
++// empty one errors) and for base closures that forward '...' to one.
++// Closures in other packages are left alone, as many (tidyverse in
++// particular) deliberately accept a trailing empty argument.
++void checkEmptyTrailingArgument(const RTokenCursor& endCursor,
++                                FunctionInformation& info,
++                                ParseStatus& status)
++{
++   if (!endCursor.isType(RToken::RPAREN))
++      return;
++
++   const RToken& last = endCursor.previousSignificantToken();
++   if (!last.isType(RToken::COMMA))
++      return;
++
++   // Base closures known to forward '...' into a builtin (and so to
++   // reject an empty argument), from the R sources and by experiment.
++   static const std::set<std::string> baseClosures = {
++      "paste", "paste0", "cat", "message", "warning", "stop", "sprintf",
++      "data.frame", "rbind", "cbind", "structure", "file.path", "order",
++      "table", "stopifnot", "options", "mapply", "Map"
++   };
++
++   const Binding& binding = *info.binding();
++   bool rejectsEmptyArgument = info.isPrimitive()
++         ? info.isBuiltin()
++         : binding.origin == "namespace:base" && baseClosures.count(binding.name);
++
++   if (rejectsEmptyArgument)
++      status.lint().emptyTrailingArgument(last, binding.name);
++}
++
++// Detect named arguments that match the same formal more than once, e.g.
++//
++//    rnorm(n = 1, n = 2)
++//
++// Only exact matches against a known formal are flagged: names that
++// fall into '...' may legitimately repeat, as in 'c(a = 1, a = 2)'.
++void checkArgumentsMatchedMultipleTimes(RTokenCursor cursor,
++                                        const std::vector<std::string>& formalNames,
++                                        ParseStatus& status)
++{
++   // The cursor may sit on the callee or on the opening paren.
++   if (cursor.nextSignificantToken().isType(RToken::LPAREN))
++      if (!cursor.moveToNextSignificantToken())
++         return;
++
++   if (!cursor.isType(RToken::LPAREN))
++      return;
++
++   if (!cursor.moveToNextSignificantToken())
++      return;
++
++   std::set<std::string> seen;
++   while (!cursor.isType(RToken::RPAREN))
++   {
++      if (cursor.isLookingAtNamedArgumentInFunctionCall())
++      {
++         std::string name = getSymbolName(cursor.currentToken());
++         if (core::algorithm::contains(formalNames, name) && !seen.insert(name).second)
++            status.lint().argumentMatchedMultipleTimes(cursor.currentToken());
++      }
++
++      // Move to the comma ending this argument, skipping nested brackets.
++      do
++      {
++         if (cursor.fwdToMatchingToken())
++            continue;
++
++         if (cursor.isType(RToken::COMMA) || isRightBracket(cursor))
++            break;
++      }
++      while (cursor.moveToNextSignificantToken());
++
++      if (!cursor.isType(RToken::COMMA))
++         break;
++
++      if (!cursor.moveToNextSignificantToken())
++         break;
++   }
++}
+ 
+ void validateFunctionCall(RTokenCursor cursor,
+                           ParseStatus& status)
+@@ -2333,7 +2625,15 @@ void validateFunctionCall(RTokenCursor cursor,
+    
+    RTokenCursor startCursor = cursor.clone();
+    startCursor.moveToStartOfEvaluation();
+-   
++
++   // Calls wrapped in '.Internal()' target the internal entry point,
++   // whose arguments differ from those of the R-level wrapper.
++   if (cursor.previousSignificantToken().isType(RToken::LPAREN) &&
++       cursor.previousSignificantToken(2).contentEquals(L".Internal"))
++   {
++      return;
++   }
++
+    MatchedCall matched = MatchedCall::match(cursor, status);
+    
+    // If this is a call to 'glue()', handle it specially here.
+@@ -2370,14 +2670,28 @@ void validateFunctionCall(RTokenCursor cursor,
+       validateGlueCall(cursor, status, open, close, keys);
+    }
+    
++   // Bail if we couldn't resolve the function being called.
++   FunctionInformation& info = matched.functionInfo();
++   if (!info.binding())
++      return;
++
++   checkEmptyTrailingArgument(endCursor, info, status);
++
+    // Bail if the function has no formals (e.g. certain primitives),
+    // or if it contains '...'
+    //
+    // TODO: Wire up argument validation + full matching for '...'
+-   const std::vector<std::string>& formalNames = 
+-         matched.functionInfo().getFormalNames();
+-   
+-   if (formalNames.empty() || core::algorithm::contains(formalNames, "..."))
++   const std::vector<std::string>& formalNames = info.getFormalNames();
++
++   // Some primitives (language constructs like 'if' and 'return')
++   // don't report formals at all; a closure with no formals is a
++   // real zero-argument function, and calls to it can be checked.
++   if (formalNames.empty() && info.isPrimitive())
++      return;
++
++   checkArgumentsMatchedMultipleTimes(cursor, formalNames, status);
++
++   if (core::algorithm::contains(formalNames, "..."))
+       return;
+    
+    // Warn on partial matches.
+@@ -3182,6 +3496,7 @@ BINARY_OPERATOR:
+ 
+       checkDottyAssignment(cursor, status);
+       checkUnexpectedEqualsAssignment(cursor, status);
++      checkInvalidAssignmentTarget(cursor, status);
+       checkBinaryOperatorWhitespace(cursor, status);
+       if (!cursor.isAtEndOfDocument() && !canFollowBinaryOperator(cursor.nextSignificantToken()))
+          status.lint().unexpectedToken(cursor.nextSignificantToken());
+@@ -3200,7 +3515,8 @@ ARGUMENT_LIST:
+       DEBUG("-- Begin argument list " << cursor);
+       if (status.parseOptions().checkArgumentsToRFunctionCalls())
+          validateFunctionCall(cursor, status);
+-      
++
++      checkPackageInstalled(cursor, status);
+       addExtraScopedSymbolsForCall(cursor, status);
+       
+       // Update the current state.
+@@ -3385,7 +3701,8 @@ FUNCTION_ARGUMENT_START:
+       DEBUG("** Function argument start");
+       
+       checkVariableAssignmentInArgumentList(cursor, status);
+-      
++      checkRepeatedFormalArgument(cursor, status);
++
+       if (cursor.isType(RToken::ID) &&
+           (cursor.nextSignificantToken().contentEquals(L"=") ||
+            cursor.nextSignificantToken().contentEquals(L"<-")))
+@@ -3502,7 +3819,7 @@ REPEAT_START:
+       goto START;
+       
+ INVALID_TOKEN:
+-      
++
+       status.lint().unexpectedToken(cursor);
+       MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+    }
+diff --git a/src/cpp/session/modules/SessionRParser.hpp b/src/cpp/session/modules/SessionRParser.hpp
+index b8104a294b..764bc8abd0 100644
+--- a/src/cpp/session/modules/SessionRParser.hpp
++++ b/src/cpp/session/modules/SessionRParser.hpp
+@@ -327,6 +327,10 @@ public:
+    void unexpectedToken(const RToken& token,
+                         const std::string& expected = std::string())
+    {
++      // Error tokens get a more specific message, wherever they show up.
++      if (token.isType(RToken::ERR))
++         return invalidCharacter(token);
++
+       const std::string& content = token.contentAsUtf8();
+       std::string message = "unexpected token '" + content + "'";
+       if (!expected.empty())
+@@ -530,7 +534,94 @@ public:
+       addLintItem(rToken, LintTypeError, message);
+    }
+ 
+-   
++   void unexpectedAssignmentToLiteralInConditional(const RToken& rToken,
++                                                   const std::string& context)
++   {
++      std::string message = fmt::format(
++          "unexpected '<-' in '{}' conditional; did you mean to use '< -'?",
++          context);
++
++      addLintItem(rToken, LintTypeWarning, message);
++   }
++
++   void invalidAssignmentTarget(const RToken& rToken)
++   {
++      std::string message = fmt::format(
++          "invalid assignment target '{}'",
++          rToken.contentAsUtf8());
++
++      addLintItem(rToken, LintTypeError, message);
++   }
++
++   void repeatedFormalArgument(const RToken& rToken)
++   {
++      std::string message = fmt::format(
++          "repeated formal argument '{}'",
++          token_utils::getSymbolName(rToken));
++
++      addLintItem(rToken, LintTypeError, message);
++   }
++
++   void argumentMatchedMultipleTimes(const RToken& rToken)
++   {
++      std::string message = fmt::format(
++          "formal argument '{}' matched by multiple actual arguments",
++          token_utils::getSymbolName(rToken));
++
++      addLintItem(rToken, LintTypeError, message);
++   }
++
++   void emptyTrailingArgument(const RToken& rToken,
++                              const std::string& functionName)
++   {
++      std::string message = fmt::format(
++          "empty trailing argument in call to '{}'",
++          functionName);
++
++      addLintItem(rToken, LintTypeError, message);
++   }
++
++   void bareReturn(const RToken& rToken)
++   {
++      addLintItem(
++               rToken,
++               LintTypeWarning,
++               "'return' used without parentheses; did you mean 'return()'?");
++   }
++
++   void invalidCharacter(const RToken& rToken)
++   {
++      std::string content = rToken.contentAsUtf8();
++
++      // The tokenizer emits an error token for an unterminated raw
++      // string, a lone '%', and any character that starts no token.
++      // Smart quotes are by far the most common of the latter (they
++      // arrive via copy-paste from word processors and chat).
++      std::string message;
++      if (content == "\xE2\x80\x9C" || content == "\xE2\x80\x9D")
++         message = "unexpected smart quote '" + content + "'; use a straight quote (\") instead";
++      else if (content == "\xE2\x80\x98" || content == "\xE2\x80\x99")
++         message = "unexpected smart quote '" + content + "'; use a straight quote (') instead";
++      else if (content == "%")
++         message = "unterminated '%' operator";
++      else if (content.size() > 1 && (content[0] == 'r' || content[0] == 'R'))
++         message = "unterminated raw string";
++      else
++         message = "unexpected character '" + content + "'";
++
++      addLintItem(rToken, LintTypeError, message);
++   }
++
++   void packageNotInstalled(const RToken& rToken,
++                            const std::string& packageName)
++   {
++      std::string message = fmt::format(
++          "package '{}' is not installed",
++          packageName);
++
++      addLintItem(rToken, LintTypeWarning, message);
++   }
++
+    void addLintItem(const RToken& rToken,
+                     LintType type,
+                     const std::string& message)
 diff --git a/src/cpp/session/modules/chat/ChatTypes.cpp b/src/cpp/session/modules/chat/ChatTypes.cpp
 index f10606fcdc..171ac7959e 100644
 --- a/src/cpp/session/modules/chat/ChatTypes.cpp
@@ -284,11 +1426,73 @@ index 35b3a2c1a1..cfca0bbc2a 100644
  #else
  
  namespace rapidjson {
+diff --git a/src/cpp/tests/testthat/test-codetools.R b/src/cpp/tests/testthat/test-codetools.R
+index b7a9687a60..1e88816858 100644
+--- a/src/cpp/tests/testthat/test-codetools.R
++++ b/src/cpp/tests/testthat/test-codetools.R
+@@ -256,3 +256,20 @@ test_that("heredoc trims trailing newlines + whitespace", {
+    expect_equal(actual, expected)
+    
+ })
++
++test_that("function information distinguishes primitives from closures without formals", {
++   
++   # neither has formals, but only the closure takes no arguments
++   primitive <- .rs.generateFunctionInformation(is.null)
++   expect_length(primitive$formal_names, 0L)
++   expect_equal(as.integer(primitive$is_primitive), 1L)
++   
++   closure <- .rs.generateFunctionInformation(function() NULL)
++   expect_length(closure$formal_names, 0L)
++   expect_equal(as.integer(closure$is_primitive), 0L)
++   
++   closure <- .rs.generateFunctionInformation(function(x, ...) x)
++   expect_equal(closure$formal_names, c("x", "..."))
++   expect_equal(as.integer(closure$is_primitive), 0L)
++   
++})
 diff --git a/src/gwt/build.xml b/src/gwt/build.xml
-index c648bf54e1..93337039c8 100644
+index c648bf54e1..6cef68e0c4 100644
 --- a/src/gwt/build.xml
 +++ b/src/gwt/build.xml
-@@ -311,13 +311,9 @@
+@@ -297,12 +297,34 @@
+         default resolve to ./www/js/panmirror, matching prior behavior. -->
+    <property name="panmirror.build.dir" value="${www.dir}/js/panmirror"/>
+ 
+-   <target name="panmirror" description="Compile panmirror library">
++   <!-- Detect OpenBSD for the native esbuild workaround. -->
++   <target name="detect-openbsd">
++      <condition property="is.openbsd">
++         <os name="OpenBSD"/>
++      </condition>
++   </target>
+ 
++   <!-- On other platforms preserve the normal dependency installation. -->
++   <target name="panmirror-install"
++           depends="detect-openbsd"
++           unless="is.openbsd">
++      <retry retrycount="3">
++         <exec executable="${yarn.bin}"
++               dir="${panmirror.dir}"
++               resolveexecutable="true"
++               failonerror="true">
++            <arg value="install"/>
++            <arg value="--network-timeout"/>
++            <arg value="240000"/>
++         </exec>
++      </retry>
++   </target>
++
++   <target name="panmirror-init">
+       <!-- Make sure a default value for panmirror.minify is set -->
+       <condition property="panmirror.minify" value="true">
+          <not>
+-            <isset property="panmirror.minify" />
++            <isset property="panmirror.minify"/>
+          </not>
+       </condition>
+ 
+@@ -311,28 +333,59 @@
        <echo message="panmirror minify: ${panmirror.minify}"/>
  
        <mkdir dir="${panmirror.build.dir}"/>
@@ -299,17 +1503,66 @@ index c648bf54e1..93337039c8 100644
 -            <arg value="240000"/>
 -         </exec>
 -      </retry>
-+      <!-- OpenBSD: skip yarn install.
-+           Dependencies are already installed and esbuild binaries
-+           were replaced with native OpenBSD builds. -->
-       <!-- vite needs more than node's default heap (~2GB on CI runners) to
-            render the panmirror bundle + sourcemap since pinyin 4.x added
-            several MB of dictionary data (quarto-dev/quarto#1057). preserve
-@@ -331,6 +327,7 @@
+-      <!-- vite needs more than node's default heap (~2GB on CI runners) to
+-           render the panmirror bundle + sourcemap since pinyin 4.x added
+-           several MB of dictionary data (quarto-dev/quarto#1057). preserve
+-           any caller-provided NODE_OPTIONS; node lets later flags win, so a
+-           caller's own heap setting takes precedence over ours. -->
+       <property name="env.NODE_OPTIONS" value=""/>
+-      <exec executable="${yarn.bin}" dir="${panmirror.dir}" resolveexecutable="true" failonerror="true">
++   </target>
++
++   <!-- Normal panmirror build used on supported non-OpenBSD platforms. -->
++   <target name="panmirror-build-default"
++           depends="detect-openbsd,panmirror-install,panmirror-init"
++           unless="is.openbsd">
++      <exec executable="${yarn.bin}"
++            dir="${panmirror.dir}"
++            resolveexecutable="true"
++            failonerror="true">
++         <arg value="build"/>
++         <arg value="--minify"/>
++         <arg value="${panmirror.minify}"/>
++         <arg value="--sourcemap"/>
++         <arg value="true"/>
++         <env key="PANMIRROR_OUTDIR" value="dist-rstudio"/>
++         <env key="NODE_OPTIONS"
++              value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
++      </exec>
++   </target>
++
++   <!--
++      OpenBSD:
++      node_modules are prepared by the OpenBSD build helper and esbuild
++      must use a native OpenBSD executable supplied through the environment.
++   -->
++   <target name="panmirror-build-openbsd"
++           depends="detect-openbsd,panmirror-init"
++           if="is.openbsd">
++      <fail unless="env.ESBUILD_BINARY_PATH"
++            message="ESBUILD_BINARY_PATH must point to a native OpenBSD esbuild binary"/>
++
++      <exec executable="${yarn.bin}"
++            dir="${panmirror.dir}"
++            resolveexecutable="true"
++            failonerror="true">
+          <arg value="build"/>
+          <arg value="--minify"/>
+          <arg value="${panmirror.minify}"/>
           <arg value="--sourcemap"/>
           <arg value="true"/>
           <env key="PANMIRROR_OUTDIR" value="dist-rstudio"/>
-+         <env key="ESBUILD_BINARY_PATH" value="/home/lars/temp/esbuild-native/esbuild-0.15.18.bin"/>
-          <env key="NODE_OPTIONS" value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
+-         <env key="NODE_OPTIONS" value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
++         <env key="ESBUILD_BINARY_PATH"
++              value="${env.ESBUILD_BINARY_PATH}"/>
++         <env key="NODE_OPTIONS"
++              value="--max-old-space-size=4096 ${env.NODE_OPTIONS}"/>
        </exec>
++   </target>
++
++   <target name="panmirror"
++           depends="panmirror-build-default,panmirror-build-openbsd"
++           description="Compile panmirror library">
        <copy todir="${panmirror.build.dir}">
+          <fileset dir="${panmirror.dir}/dist-rstudio"/>
+       </copy>
